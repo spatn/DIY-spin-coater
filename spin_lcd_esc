@@ -1,0 +1,338 @@
+#include <LiquidCrystal.h>
+#include <ESC.h>
+
+LiquidCrystal lcd(8, 9, 4, 5, 6, 7);
+ESC myESC (13, 1000, 2000, 500);
+
+int x = -1;
+int plus_x = -1;
+int ox = -1;
+bool select = false;
+bool t_select = false;
+int rpm = 2700;  // min rpm
+float speed = 1013; // initial pwm
+int t = 0;
+float a_pmw = 26.671;  // rpm=a_pmw*pmw+b
+float b = 24348;      
+
+
+//define buttons
+#define btnSelect 0
+#define btnL 1
+#define btnUp 2
+#define btnD 3
+#define btnP 4
+#define btnNONE 5
+
+// read buttons
+int read_LCD_buttons(){
+    plus_x=analogRead(0);
+    
+    if(plus_x>1500) return btnNONE;
+    if(plus_x<80) return btnP;
+    if(plus_x<260) return btnUp;
+    if(plus_x<430) return btnD;
+    if(plus_x<630) return btnL;
+    if(plus_x<790) return btnSelect;
+return -1;
+}
+
+int pmw(float i_pmw, float j_B){		//calc rpm from calibration curve
+        return (rpm + j_B) / i_pmw;
+}
+
+void start_song(){
+    for(int a=0;a<=2;a++){
+        lcd.setCursor(0,0);lcd.print("Spin me");
+        lcd.setCursor(0,1);lcd.print("round");delay(700);lcd.clear();
+        lcd.setCursor(0,1);lcd.print("and");delay(700);lcd.clear();
+        lcd.setCursor(0,1);lcd.print("round");delay(700);
+        lcd.clear();
+    }
+}
+
+void calib(){					// calibration optional
+    delay(500);
+    lcd.setCursor(2,0);
+    lcd.clear();
+    lcd.print("CALIBRATE ?");
+    delay(2000);
+    lcd.clear();
+    lcd.setCursor(1,0);
+    lcd.print("Hold");
+    lcd.setCursor(1,1);
+    lcd.print("SELECT if YES");
+    delay(1500);
+    lcd.clear();
+    for(int a=0;a<=3;a++){
+        x = read_LCD_buttons();
+        lcd.print(3-a);lcd.print(" ,");
+        delay(1000);
+    }
+    if(x==0){
+        lcd.clear();
+        lcd.print("CALIBRATION...");
+        myESC.calib();
+        lcd.clear();
+        lcd.setCursor(0,0);lcd.print("power on!");
+        myESC.stop();
+    }
+    delay(1000);
+x=-1;
+}
+
+void run(){					// run the motor
+    float step;
+    float speed_step = speed;
+    int i;
+    step = (pmw(a_pmw,b)-speed_step)/10;
+    for(i = 0; i <= 10; i++){
+        speed = speed + step;
+        (int)speed;
+        myESC.speed(speed);
+        delay(100);
+        lcd.setCursor(12,1);
+        lcd.print(speed);
+    }
+    for(t - 1; t >= 0; t--){
+    delay(1000);
+    lcd.setCursor(14,0);
+    lcd.print(t);
+    }
+    for(i = 0; i <= 10; i++){
+        speed = speed - step;
+        (int)speed;
+        myESC.speed(speed);
+        delay(100);
+    }
+    delay(500);
+    lcd.clear();
+    myESC.stop();
+    lcd.print("done Spinner!");
+    delay(3000);
+}
+void reset(){					// reset to initial values
+    x = -1;
+    plus_x = -1;
+    ox = -1;
+    select = false;
+    t_select = false;
+    rpm = 2700;
+    speed = 1013; 
+    t = 0;
+    lcd.clear();
+}
+
+void bSelect(){					// select button one click for rpm
+        lcd.clear();
+        lcd.setCursor(0,0);
+        lcd.print("Press up or down");
+        lcd.setCursor(0,1);
+        lcd.print(rpm);lcd.print(" RPM");
+   if(select == false){
+   select = !select;
+   }
+}
+
+void bTime(){					// select button second click for time
+        lcd.clear();
+        lcd.setCursor(0,0);
+        lcd.print("Press up or down");
+        lcd.setCursor(0,1);
+        lcd.print("time ");lcd.print(t);lcd.print(" s");
+    if(t_select == false){
+    t_select = !t_select;
+    }
+}
+
+void update_display() {				// screen during spinning
+    lcd.clear();
+    lcd.setCursor(0,0);
+    lcd.print("spinnn'it");
+    lcd.setCursor(0,1);
+    lcd.print(rpm);
+    lcd.print(" RPM, ");
+    lcd.print(t);
+    lcd.print(" s ");
+}
+
+void set_screen(){				// initial screen 
+        lcd.setCursor(0,0);
+        lcd.print(" RPM or time? ");
+        lcd.setCursor(0,1);
+        lcd.print(" Hit Select!");
+        delay(100);
+}
+
+                                    // key press
+void key_press(){
+    switch (ox){
+        case btnP:                  // right
+        {
+            if(t>0){
+            if(select == true){
+                update_display();
+                run();
+                reset();
+            }
+            else{
+                lcd.clear();
+                lcd.print("select rpm");
+                lcd.setCursor(0,1);
+                lcd.print("and time");
+                delay(700);
+            }
+            }
+            else if(select==true){
+                lcd.clear();
+                lcd.print("Select time");
+                delay(2000);
+                bTime();
+            }
+            else{
+                lcd.clear();
+                lcd.print("Select rpm");
+                delay(2000);
+                bSelect();
+            }
+        break;
+        }
+        case btnL:                  // left
+        {
+            if(t_select == false){
+                if(select == true){
+                    select = !select;
+                    lcd.clear();
+                    set_screen;
+                    reset();
+                    break;
+                }      
+            }
+            if(t_select == true){
+            t_select = !t_select;
+            bSelect();
+            break;
+            }
+        break;
+        }
+        case btnUp:                 // up
+        {
+            if(select == true && t_select == false){
+                rpm = rpm + 100;
+                bSelect();
+                delay(100);
+                break;
+            }
+            if(select == true && t_select == true){
+                if(t>=0){
+                if(t<10){
+                t=t+1;
+                bTime();
+                delay(100);
+                break;
+                }
+                else{
+                t = t + 10;
+                bTime();
+                delay(100);
+                break;
+                }
+                }
+            }
+        break;
+        }
+        case btnD:                  // down
+        {
+            if(select == true && t_select == false && rpm>=2700){
+                rpm = rpm - 100;
+                bSelect();
+                delay(100);
+                break;
+            }
+            if(select == true && t_select == true){
+                if(t>0){
+                if(t<10){
+                    t=t-1;
+                    bTime();
+                    delay(100);
+                    break;
+                }
+                else{
+                    t = t - 10;
+                    bTime();
+                    delay(100);   
+                    break;
+                }
+                }
+                else{
+                    break;
+                }
+            }
+        break;
+        }
+        case btnSelect:             //select 
+        {
+            bSelect();
+            delay(100);
+            break;
+        }
+        case 10:             //select time
+        {
+         bTime();
+        delay(100);
+        break;
+        }
+    }
+}
+
+
+void setup(){
+    Serial.begin(9600);
+    lcd.begin(16,2);
+    
+    start_song();
+    calib();					//optional calibration
+    
+    lcd.setCursor(0,1);lcd.print("wait..");
+    delay(500);
+    lcd.clear();
+    lcd.setCursor(0,1);lcd.print("arming");
+    myESC.arm();
+    delay(1000);
+    lcd.clear();
+
+    lcd.setCursor(0,0);lcd.print("Spin me");
+    lcd.setCursor(0,1);lcd.print("round");delay(500);
+    lcd.setCursor(0,1);lcd.print("and");delay(500);
+    lcd.setCursor(0,1);lcd.print("round");
+
+lcd.clear();
+lcd.print(pmw(a_pmw,b)); // optional, for debuging
+delay(1000);
+}
+
+void loop(){
+    x = read_LCD_buttons();
+    delay(100);
+    if( x != -1){
+        ox = x;
+        delay(50); 
+            if(ox == 0){
+            if(select == true){  // two times select 
+                ox = 10;
+                }   
+            }
+        delay(50);
+        key_press();
+    }   
+    if(ox == -1) { // return to initial screen
+    set_screen();
+    }
+
+
+x = -1;
+delay(50);
+lcd.setCursor(12,1);
+lcd.print(pmw(a_pmw,b));  // optional, for debuging
+}
+
