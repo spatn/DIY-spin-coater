@@ -1,1 +1,1 @@
-# DIY-spin-coater
+# Code for DIY arduino based spin-coater
